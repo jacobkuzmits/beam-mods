@@ -10,9 +10,7 @@ An original, procedurally modelled wheel added to saaaalleeeeeenn's BeamNG wheel
 - Mesh placement and physics values match the pack's CN505 parts for each size, so it mounts the same way.
 
 ## Install
-Build the zips (see Rebuild; `dist/` is not committed), then pick one and put it in `<BeamNG user folder>/current/mods/`:
-- `dist/vintage_wheels_kestrel_k5_addon.zip` (recommended): just the new wheel, used next to the original pack. It needs no other mod (vanilla tires only).
-- `dist/VintagePP_wheels_v15_plus_kestrel_k5.zip`: the original pack with the wheel merged in, with repo metadata removed. Use it **instead of** the original, not alongside it.
+Put [`dist/vintage_wheels_kestrel_k5_addon.zip`](dist/vintage_wheels_kestrel_k5_addon.zip) in `<BeamNG user folder>/current/mods/`. It's a standalone mod: it uses only vanilla tires and doesn't need the original pack installed.
 
 In game: Vehicle Config → Wheels → "Kestrel K5 Vintage 5-Spoke …"
 
@@ -21,6 +19,6 @@ In game: Vehicle Config → Wheels → "Kestrel K5 Vintage 5-Spoke …"
 blender-4.5 -b --factory-startup --python tools/build_blend.py -- --dae build/kestrel_k5.dae \
     [--renders build/renders --hdri <studiolight.exr>]
 python3 -I tools/package.py --cn505 <pack>/vehicles/common/wheels/wheels_5lug/cn505 \
-    --dae build/kestrel_k5.dae --out dist [--original <pack zip>]
+    --dae build/kestrel_k5.dae --out dist
 ```
 Use Blender 4.5 LTS or older. Blender 5.x removed COLLADA export. Shape parameters are in `tools/k5_mesh.py`.

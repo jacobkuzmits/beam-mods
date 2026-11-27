@@ -4,8 +4,7 @@ Physics for every size is copied verbatim from the pack's CN505 parts (same
 mounting geometry), only the part keys, display names and mesh names change.
 
 Usage:
-  python3 -I package.py --cn505 DIR --dae kestrel_k5.dae --out OUTDIR \
-      [--original ORIGINAL_MOD.zip]
+  python3 -I package.py --cn505 DIR --dae kestrel_k5.dae --out OUTDIR
 """
 import argparse
 import json
@@ -75,7 +74,6 @@ def main():
     ap.add_argument("--cn505", required=True)
     ap.add_argument("--dae", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--original")
     a = ap.parse_args()
 
     fb = split_blocks(open(os.path.join(a.cn505, "wheels_F_5_cn505.jbeam"), encoding="utf-8").read())
@@ -104,26 +102,11 @@ def main():
     files[f"{MOD_DIR}/kestrel_k5.dae"] = open(a.dae, "rb").read()
 
     os.makedirs(a.out, exist_ok=True)
-    # 1) standalone add-on (recommended): drop next to the original pack
     addon = os.path.join(a.out, "vintage_wheels_kestrel_k5_addon.zip")
     with zipfile.ZipFile(addon, "w", zipfile.ZIP_DEFLATED) as z:
         for p, data in sorted(files.items()):
             z.writestr(p, data)
     print("wrote", addon, os.path.getsize(addon))
-
-    # 2) the original pack with the new wheel merged in
-    if a.original:
-        merged = os.path.join(a.out, "VintagePP_wheels_v15_plus_kestrel_k5.zip")
-        with zipfile.ZipFile(a.original) as src, zipfile.ZipFile(merged, "w", zipfile.ZIP_STORED) as dst:
-            for info in src.infolist():
-                # drop repo metadata so BeamNG's repo manager doesn't treat
-                # (and "update") this edited copy as the official download
-                if info.filename.startswith("mod_info/"):
-                    continue
-                dst.writestr(info, src.read(info.filename))
-            for p, data in sorted(files.items()):
-                dst.writestr(p, data, compress_type=zipfile.ZIP_DEFLATED)
-        print("wrote", merged, os.path.getsize(merged))
 
 
 if __name__ == "__main__":
