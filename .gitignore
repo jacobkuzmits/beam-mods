@@ -1,0 +1,7 @@
+# Build outputs (regenerate with the scripts in each mod's tools/)
+**/build/*
+!**/build/renders/
+**/dist/
+__pycache__/
+*.pyc
+*.blend1
