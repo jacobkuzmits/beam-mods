@@ -30,14 +30,19 @@ def mat(name, stage, **top):
     return d
 
 
-def lens(name, color, emissive, opacity, nits):
-    off = mat(name, {"baseColorFactor": color + [1], "metallicFactor": 0, "roughnessFactor": 0.05,
-                     "opacityFactor": opacity}, translucent=True, translucentZWrite=False)
-    on = mat(name + "_on", {"baseColorFactor": color + [1], "metallicFactor": 0, "roughnessFactor": 0.05,
-                            "opacityFactor": opacity, "emissiveFactor": emissive,
-                            "emissiveIntensityNits": nits}, translucent=True, translucentZWrite=False)
+
+
+def lens(name, color, emissive, opacity, nits, prism=False):
+    extra = {"normalMap": PRISM_N} if prism else {}
+    off = mat(name, dict({"baseColorFactor": color + [1], "metallicFactor": 0, "roughnessFactor": 0.05,
+                          "opacityFactor": opacity}, **extra), translucent=True, translucentZWrite=False)
+    on = mat(name + "_on", dict({"baseColorFactor": color + [1], "metallicFactor": 0, "roughnessFactor": 0.05,
+                                 "opacityFactor": opacity, "emissiveFactor": emissive,
+                                 "emissiveIntensityNits": nits}, **extra), translucent=True, translucentZWrite=False)
     return {name: off, name + "_on": on}
 
+
+PRISM_N = "/vehicles/ariahatch/hatch83/h83_lens_prism_n.png"
 
 MATERIALS = {
     "h83_black_plastic": mat("h83_black_plastic", {"baseColorFactor": [0.035, 0.035, 0.037, 1],
@@ -53,10 +58,21 @@ MATERIALS = {
     "h83_wheel_silver": mat("h83_wheel_silver", {"baseColorFactor": [0.62, 0.63, 0.65, 1],
                                                  "metallicFactor": 0.8, "roughnessFactor": 0.35,
                                                  "clearCoatFactor": 0.5, "clearCoatRoughnessFactor": 0.1}),
+    "h83_bumper_strip": mat("h83_bumper_strip", {"baseColorFactor": [0.78, 0.79, 0.81, 1],
+                                                 "metallicFactor": 0.9, "roughnessFactor": 0.22}),
+    "h83_lamp_back": mat("h83_lamp_back", {"baseColorFactor": [0.85, 0.85, 0.87, 1],
+                                           "metallicFactor": 1, "roughnessFactor": 0.22}),
+    "h83_lamp_frame": mat("h83_lamp_frame", {"baseColorFactor": [0.06, 0.06, 0.065, 1],
+                                             "metallicFactor": 0, "roughnessFactor": 0.4}),
+    "h83_reflector_red": mat("h83_reflector_red", {"baseColorFactor": [0.45, 0.02, 0.02, 1],
+                                                   "metallicFactor": 0.3, "roughnessFactor": 0.15,
+                                                   "clearCoatFactor": 1, "clearCoatRoughnessFactor": 0.02,
+                                                   "normalMap": PRISM_N}),
 }
 MATERIALS.update(lens("h83_lens_clear", [0.92, 0.93, 0.95], [1.0, 0.95, 0.85], 0.45, 7500))
-MATERIALS.update(lens("h83_lens_red", [0.55, 0.02, 0.02], [1.0, 0.04, 0.02], 0.8, 4000))
-MATERIALS.update(lens("h83_lens_amber", [0.9, 0.42, 0.02], [1.0, 0.45, 0.02], 0.8, 4000))
+MATERIALS.update(lens("h83_lens_clear_prism", [0.92, 0.93, 0.95], [1.0, 0.95, 0.85], 0.35, 6000, prism=True))
+MATERIALS.update(lens("h83_lens_red", [0.62, 0.02, 0.02], [1.0, 0.04, 0.02], 0.72, 4000, prism=True))
+MATERIALS.update(lens("h83_lens_amber", [0.95, 0.45, 0.02], [1.0, 0.45, 0.02], 0.72, 4000, prism=True))
 
 
 def glow(fn, off, on, scale=1.0):
@@ -68,7 +84,8 @@ GLOW = {
     "h83_glass_taillight": glow({"custom_lowhighbeam": 0.49, "custom_brake": 1.0}, "h83_lens_red", "h83_lens_red_on"),
     "h83_glass_signal_L": glow({"custom_signal_L": 1.0}, "h83_lens_amber", "h83_lens_amber_on", 0.49),
     "h83_glass_signal_R": glow({"custom_signal_R": 1.0}, "h83_lens_amber", "h83_lens_amber_on", 0.49),
-    "h83_glass_reverse": glow({"custom_reverse": 1.0}, "h83_lens_clear", "h83_lens_clear_on"),
+    "h83_glass_reverse": glow({"custom_reverse": 1.0}, "h83_lens_clear_prism", "h83_lens_clear_prism_on"),
+    "h83_glass_parking": glow({"custom_lowhighbeam": 1.0}, "h83_lens_clear_prism", "h83_lens_clear_prism_on", 0.3),
 }
 
 
@@ -83,7 +100,7 @@ def clone(parts, src, name, label, value=None):
 
 
 def set_bulb(p, slot, pos):
-    for r in p["slots2"][1:]:
+    for r in p.get("slots2", [])[1:]:
         if r[0] == slot:
             v = r[5]["variables"]
             v["$posX"], v["$posY"], v["$posZ"] = pos
@@ -117,6 +134,21 @@ def build_parts(parts, meta):
              {"deformSound": "event:>Destruction>Vehicle>Glass>extglassbreaksound4", "deformVolume": 0.5}],
             {"deformGroup": ""}])
         p["glowMap"] = {"h83_glass_headlight": GLOW["h83_glass_headlight"]}
+        hx = 0.5125 if s == "L" else -0.5125
+        for b in ("low", "high"):
+            set_bulb(p, f"ariahatch_headlight_{s}_{b}_bulb", (hx, -1.672, 0.673))
+
+        p = put(clone(parts, f"ariahatch_fender_{s}_late", f"ariahatch_fender_{s}_h83",
+                      f"'83 Hatch {side} Front Fender (Flush Shoulder)"))
+        p["flexbodies"] = flex([
+            [f"ariahatch_h83_fender_{F}", ["ariahatch_body"]],
+            {"deformGroup": f"signal_{s}_break"},
+            [f"ariahatch_h83_fender_marker_{F}", ["ariahatch_body"], [],
+             {"deformSound": "event:>Destruction>Vehicle>Glass>extglassbreaksound4", "deformVolume": 0.8}],
+            {"deformGroup": ""}])
+        mk = meta["fender_marker_L"]
+        set_bulb(p, f"ariahatch_fender_{s}_bulb", tuple(mk) if s == "L" else (-mk[0], mk[1], mk[2]))
+        p["glowMap"] = {f"h83_glass_signal_{s}": GLOW[f"h83_glass_signal_{s}"]}
 
         R = "R" + s
         p = put(clone(parts, f"ariahatch_taillight_{R}_late", f"ariahatch_taillight_{R}_h83",
@@ -124,6 +156,8 @@ def build_parts(parts, meta):
         p["flexbodies"] = flex([
             {"deformGroup": f"taillightglass_{s}_break"},
             [f"ariahatch_h83_taillight_{R}", [f"ariahatch_taillight_{R}"], [],
+             {"deformSound": "event:>Destruction>Vehicle>Glass>extglassbreaksound4", "deformVolume": 0.5}],
+            [f"ariahatch_h83_taillight_gate_{R}", ["ariahatch_tailgate"], [],
              {"deformSound": "event:>Destruction>Vehicle>Glass>extglassbreaksound4", "deformVolume": 0.5}],
             {"deformGroup": ""}])
         b = meta["taillight_bulbs_L"]
@@ -133,7 +167,22 @@ def build_parts(parts, meta):
         set_bulb(p, f"ariahatch_taillight_{s}_reverse_bulb", mir(b["reverse"]))
         p["glowMap"] = {k: GLOW[k] for k in ("h83_glass_taillight", f"h83_glass_signal_{s}", "h83_glass_reverse")}
 
-    p = put(clone(parts, "ariahatch_grille_F_late_a", "ariahatch_grille_F_h83", "'83 Hatch Slat Grille"))
+    p = put(clone(parts, "ariahatch_hood_late", "ariahatch_hood_h83", "'83 Hatch Flat Hood (Cowl Louvres)"))
+    p["flexbodies"] = flex([["ariahatch_h83_hood", ["ariahatch_hood"]]])
+
+    p = put(clone(parts, "ariahatch_frontpanel_late", "ariahatch_frontpanel_h83", "'83 Hatch Front Panel"))
+    p["flexbodies"] = flex([["ariahatch_h83_frontpanel", ["ariahatch_body"]]])
+    defaults = {"ariahatch_bumper_F": "ariahatch_bumper_F_h83", "ariahatch_fascia_F_late": "ariahatch_fascia_F_h83",
+                "ariahatch_headlight_FR_late": "ariahatch_headlight_FR_h83",
+                "ariahatch_headlight_FL_late": "ariahatch_headlight_FL_h83"}
+    p["slots"] = [p["slots"][0]] + [[r[0], defaults.get(r[0], r[1])] + r[2:] for r in p["slots"][1:]]
+
+    p = put(clone(parts, "ariahatch_fascia_F_late", "ariahatch_fascia_F_h83", "'83 Hatch Chrome Header Fascia"))
+    p["flexbodies"] = flex([["ariahatch_h83_fascia_F", ["ariahatch_fascia_F"]]])
+    p["slots"] = [p["slots"][0]] + [[r[0], "ariahatch_grille_F_h83" if r[0] == "ariahatch_grille_F_late" else r[1]] + r[2:]
+                                    for r in p["slots"][1:]]
+
+    p = put(clone(parts, "ariahatch_grille_F_late_a", "ariahatch_grille_F_h83", "'83 Hatch Bar Grille"))
     p["flexbodies"] = flex([["ariahatch_h83_grille_F", ["ariahatch_fascia_F"]]])
     p["slots"] = [p["slots"][0]] + [[r[0], ""] + r[2:] for r in p["slots"][1:]]  # badge empty by default
 
@@ -141,23 +190,36 @@ def build_parts(parts, meta):
     p["flexbodies"] = flex([
         ["ariahatch_h83_bumper_F", ["ariahatch_bumper_F"]],
         {"deformGroup": "bumperlight_FL_break"},
-        ["ariahatch_h83_bumper_signal_FL", ["ariahatch_bumper_F"], [],
+        ["ariahatch_h83_bumper_lamps_FL", ["ariahatch_bumper_F"], [],
          {"deformSound": "event:>Destruction>Vehicle>Glass>extglassbreaksound4", "deformVolume": 0.5}],
         {"deformGroup": "bumperlight_FR_break"},
-        ["ariahatch_h83_bumper_signal_FR", ["ariahatch_bumper_F"], [],
+        ["ariahatch_h83_bumper_lamps_FR", ["ariahatch_bumper_F"], [],
          {"deformSound": "event:>Destruction>Vehicle>Glass>extglassbreaksound4", "deformVolume": 0.5}],
         {"deformGroup": ""}])
     drop_slots(p, {"ariahatch_bumper_FL_fog_bulb", "ariahatch_bumper_FR_fog_bulb"})
     sx, sy, sz = meta["bumper_signal_L"]
-    set_bulb(p, "ariahatch_bumper_FL_signal_bulb", (round(sx, 3), round(sy + 0.012, 3), sz))
-    set_bulb(p, "ariahatch_bumper_FR_signal_bulb", (round(-sx, 3), round(sy + 0.012, 3), sz))
+    set_bulb(p, "ariahatch_bumper_FL_signal_bulb", (round(sx, 3), round(sy, 3), sz))
+    set_bulb(p, "ariahatch_bumper_FR_signal_bulb", (round(-sx, 3), round(sy, 3), sz))
     for r in p["slots2"][1:]:
         if r[0] == "ariahatch_licenseplate_F":
             r[5]["nodeOffset"]["y"] = -0.035
-    p["glowMap"] = {k: GLOW[k] for k in ("h83_glass_signal_L", "h83_glass_signal_R")}
+    p["glowMap"] = {k: GLOW[k] for k in ("h83_glass_signal_L", "h83_glass_signal_R", "h83_glass_parking")}
 
     p = put(clone(parts, "ariahatch_bumper_R_late", "ariahatch_bumper_R_h83", "'83 Hatch Wraparound Rear Bumper"))
-    p["flexbodies"] = flex([["ariahatch_h83_bumper_R", ["ariahatch_bumper_R"]]])
+    p["flexbodies"] = flex([["ariahatch_h83_bumper_R", ["ariahatch_bumper_R"]],
+                            ["ariahatch_h83_rear_panel", ["ariahatch_body"]]])
+
+    p = put(clone(parts, "ariahatch_licenseplate_R_EU", "ariahatch_licenseplate_R_h83",
+                  "'83 Hatch Rear License Plate (raised)"))
+    px, py, pz = meta["plate_R_pos"]
+    p["flexbodies"][1][3]["pos"] = {"x": px, "y": py, "z": pz}
+
+    p = put(clone(parts, "ariahatch_trim_late", "ariahatch_trim_h83", "'83 Hatch Side Mouldings, Markers & Fuel Door"))
+    p["flexbodies"] = flex([
+        ["ariahatch_h83_trim_fender_L", ["ariahatch_fender_L"]], ["ariahatch_h83_trim_fender_R", ["ariahatch_fender_R"]],
+        ["ariahatch_h83_trim_door_L", ["ariahatch_door_L"]], ["ariahatch_h83_trim_door_R", ["ariahatch_door_R"]],
+        ["ariahatch_h83_trim_body_L", ["ariahatch_body"]], ["ariahatch_h83_trim_body_R", ["ariahatch_body"]],
+        ["ariahatch_h83_trim_body_extra_L", ["ariahatch_body"]], ["ariahatch_h83_trim_body_extra_R", ["ariahatch_body"]]])
 
     for a in ("F", "R"):
         p = put(clone(parts, f"ariahatch_wheel_01b_13x5_{a}", f"ariahatch_wheel_h83_13x5_{a}",
@@ -212,6 +274,12 @@ def build_pc(base_pc):
     pc = copy.deepcopy(base_pc)
     P = pc["parts"]
     P.update({
+        "ariahatch_hood": "ariahatch_hood_h83",
+        "ariahatch_fender_L": "ariahatch_fender_L_h83", "ariahatch_fender_R": "ariahatch_fender_R_h83",
+        "ariahatch_frontpanel": "ariahatch_frontpanel_h83",
+        "ariahatch_fascia_F_late": "ariahatch_fascia_F_h83",
+        "ariahatch_licenseplate_R": "ariahatch_licenseplate_R_h83",
+        "ariahatch_trim": "ariahatch_trim_h83",
         "ariahatch_headlight_FL_late": "ariahatch_headlight_FL_h83",
         "ariahatch_headlight_FR_late": "ariahatch_headlight_FR_h83",
         "ariahatch_grille_F_late": "ariahatch_grille_F_h83",
@@ -258,7 +326,9 @@ def main():
                 assert r[0] in meshes, (name, r[0])
         for g in p.get("glowMap", {}).values():
             assert g["off"] in MATERIALS and g["on"] in MATERIALS, g
-    assert set(meta["materials"]) <= set(MATERIALS) | set(GLOW), set(meta["materials"]) - set(MATERIALS) - set(GLOW)
+    aria_mats = {"ariahatch_main"}   # the Aria's own body material (paint), defined in its main.materials.json
+    assert set(meta["materials"]) <= set(MATERIALS) | set(GLOW) | aria_mats, \
+        set(meta["materials"]) - set(MATERIALS) - set(GLOW) - aria_mats
 
     base_pc = json.load(open(os.path.join(a.aria, "ariahatch", "120_super_late_M.pc")))
     pc = build_pc(base_pc)
@@ -278,6 +348,7 @@ def main():
     files[f"{SUB}/ariahatch_h83.jbeam"] = blob.encode()
     files[f"{SUB}/hatch83.materials.json"] = json.dumps(MATERIALS, indent=1).encode()
     files[f"{SUB}/hatch83.dae"] = open(os.path.join(a.build, "hatch83.dae"), "rb").read()
+    files[f"{SUB}/h83_lens_prism_n.png"] = open(os.path.join(a.build, "tex", "h83_lens_prism_n.png"), "rb").read()
     files[f"{VDIR}/{PC_NAME}.pc"] = json.dumps(pc, indent=2).encode()
     files[f"{VDIR}/info_{PC_NAME}.json"] = json.dumps(info, indent=2).encode()
     if a.thumb:

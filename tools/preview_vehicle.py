@@ -34,6 +34,7 @@ ap.add_argument("--blend")
 ap.add_argument("--prefix", default="")
 ap.add_argument("--matjson", nargs="*", default=[], help="BeamNG materials.json files (factor-only materials)")
 ap.add_argument("--glow", help="json {daeMaterial: {off: material}} (glowMap)")
+ap.add_argument("--modroot", help="dir that BeamNG-absolute texture paths (/vehicles/...) resolve against")
 a = ap.parse_args(argv)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -99,6 +100,14 @@ def setup_material(mat):
         I["Roughness"].default_value = st.get("roughnessFactor", 0.5)
         I["Coat Weight"].default_value = st.get("clearCoatFactor", 0)
         I["Alpha"].default_value = st.get("opacityFactor", 1.0)
+        nm = st.get("normalMap")
+        if nm and a.modroot and os.path.exists(os.path.join(a.modroot, nm.lstrip("/"))):
+            img = bpy.data.images.load(os.path.join(a.modroot, nm.lstrip("/")), check_existing=True)
+            img.colorspace_settings.name = "Non-Color"
+            tn = nt.nodes.new("ShaderNodeTexImage"); tn.image = img
+            nn = nt.nodes.new("ShaderNodeNormalMap")
+            nt.links.new(tn.outputs["Color"], nn.inputs["Color"])
+            nt.links.new(nn.outputs["Normal"], I["Normal"])
         return
     if "glass" in low or low == "mirror" or "windshield" in low:
         I["Base Color"].default_value = (0.02, 0.025, 0.03, 1)
@@ -231,8 +240,23 @@ VIEWS = {  # direction from center (x=left, y=rear), height, lens
     "front": ((0.0, -1.0), 0.9, 60),
     "rear": ((0.0, 1.0), 0.9, 60),
 }
+ORTHO = {  # direction the camera sits in, orthographic width in meters
+    "oside": ((1, 0, 0), 4.6), "ofront": ((0, -1, 0), 2.3), "orear": ((0, 1, 0), 2.3), "otop": ((0, 0, 1), 4.6),
+}
 os.makedirs(a.out, exist_ok=True)
-for v in a.views.split(","):
+for v in [v for v in a.views.split(",") if v in ORTHO]:
+    d, width = ORTHO[v]
+    tgt = Vector((0, 0, 0.7)) if v != "otop" else Vector((0, 0, 0))
+    cam.data.type = "ORTHO"
+    cam.data.ortho_scale = width
+    cam.location = tgt + Vector(d) * 10
+    up = "Y" if v != "otop" else "Y"
+    cam.rotation_euler = (tgt - cam.location).to_track_quat("-Z", "Y" if v != "otop" else "X").to_euler()
+    scene.render.filepath = os.path.join(a.out, f"{a.prefix}{v}.png")
+    bpy.ops.render.render(write_still=True)
+    print("rendered", scene.render.filepath, "ortho", width, "m wide, center", tuple(tgt))
+cam.data.type = "PERSP"
+for v in [v for v in a.views.split(",") if v not in ORTHO]:
     (dx, dy), h, lens = VIEWS[v]
     d = Vector((dx, dy, 0)).normalized()
     dist = 7.0 if v in ("fl", "fr", "rl", "rr", "side") else 6.0
